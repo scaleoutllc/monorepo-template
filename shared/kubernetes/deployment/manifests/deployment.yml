@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: codename
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: codename
+  template:
+    metadata:
+      labels:
+        app: codename
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsGroup: 10001
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+      - name: codename
+        image: codename/container:1.0.0
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["all"]
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: APP_SERVER_PORT
+          value: "8080"
+        - name: AWS_REGION
+          value: us-east-1
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /readiness
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 5 # wait 5 secs between each try
+          timeoutSeconds: 1 # wait 1 secs for response on each try
+          successThreshold: 1
+          failureThreshold: 6 # if failed for 30s (fail*period) consider unready
+        livenessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /liveness
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 6 # if failed for 30s (fail*period) consider dead
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir:
+          medium: Memory

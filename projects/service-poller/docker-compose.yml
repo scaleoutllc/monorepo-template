@@ -1,0 +1,21 @@
+version: "3.5"
+services:
+  service-poller:
+    container_name: service-poller
+    environment:
+      APP_SERVER_PORT: 8081
+      APP_POLLER_QPS: 2
+      APP_POLLER_TARGET: http://service-echo:8080/v1/echo
+      APP_POLLER_METHOD: GET
+      APP_POLLER_BODY: ""
+    ports:
+    - 8081:8081
+    networks:
+    - local
+    build: ${SERVICE_POLLER_ROOT:-./}
+    volumes:
+    - ${SERVICE_POLLER_ROOT:-.}/dist:/var/app
+
+networks:
+  local:
+    name: local

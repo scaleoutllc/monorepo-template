@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# docker-compose wrapper to enable loosely coupled docker-compose configuration
+set -euo pipefail
+SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+
+# recursively trace docker-compose service dependencies
+function depWalk {
+  # iterate over each positional parameter (project)
+  for project in $*; do
+    config=${project}/docker-compose.yml
+    if [[ -f ${config} ]]; then
+      # if a configuration file exists for the project, get all dependencies
+      # recursively look up the dependencies for those as well.
+      depWalk $(NAME=${project} deps < ${config})
+    fi
+    # make sure to echo the source project
+    echo ${project}
+  done | sort | uniq
+  # when done iterating, only output unique projects
+}
+
+# get the dependencies for a service from a docker-compose.yml file provided
+# on stdin.
+function deps {
+  spruce json | jq -r '(.services[env.NAME].depends_on//[])[]'
+}
+
+# convert project folder name to environment variable by replacing all dashes
+# with underscores and converting to uppercase (service-image = SERVICE_IMAGE)
+function toEnvVar {
+  sed 's/-/_/g; s/\(.*\)/\U\1/'
+}
+
+# ensure a given command is installed
+function requireInPath {
+  command -v $1 >/dev/null 2>&1 || {
+    echo >&2 "missing $1"; exit 1;
+  }
+}
+
+# ensure all required tooling is present on the local machine
+requireInPath spruce
+requireInPath jq
+requireInPath docker-compose
+
+# get all arguments provided to this script
+all=$*
+
+# bail out if the arguments aren't complete
+if [[ ${all} != *" -- "* ]]; then
+  cat <<EOF
+Usage: ./compose <command> -- [projects...]
+
+Launch docker compose for an arbitrary combination of projects.
+
+Example Usage:
+  ./compose up --build -- service-*
+EOF
+  exit 1
+fi
+
+# get all arguments before -- (e.g. docker-compose commands like up/down/build)
+args=${all%% -- *}
+# get all argutments after -- (e.g. project names)
+projects=${all#* -- }
+
+# execute docker-compose command
+(
+  # ensure we are sibling to the docker-compose file
+  cd ${SCRIPT_PATH}
+  # initalize array of docker-compose config files to include
+  configs=()
+  # iterate over all required projects, including their docker-compose file
+  for project in $(depWalk ${projects}); do
+    configs+=("-f ${project}/docker-compose.yml")
+    export $(toEnvVar <<<${project})_ROOT=./${project}
+  done
+  # assemble command
+  command="docker-compose --project-directory . -p projects ${configs[@]} ${args}"
+  # tell operator what is being run
+  echo ${command}
+  # do it
+  ${command}
+)

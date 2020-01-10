@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# run a command from within the ops container.
+set -euo pipefail
+
+# given two arguments get the relative path between them.
+# this lovely nonsense is used to make help screens a bit less verbose.
+function relpath {
+  s=$(cd ${1%%/};pwd); d=$(cd $2;pwd); while [ "${d#$s/}" == "${d}" ]
+  do s=$(dirname $s);b="../${b:-}"; done; echo ${b:-}${d#$s/}
+}
+
+SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+CI_OPS_PROJECT_PATH=$(relpath $PWD ${SCRIPT_PATH}/../projects/ci-ops)
+ROOT_PATH=${SCRIPT_PATH}/../
+IMAGE=ci-ops
+
+function usage {
+  cat <<EOF
+Usage: ops <command>
+
+Run a one-off command inside the ops container used by ci (from the current
+working directory). If the container doesn't exist, build the one located at
+the following path: ${CI_OPS_PROJECT_PATH}.
+
+Example Usage:
+  ops aws --version
+  ops fly -v
+  ops jq --version
+  ops kubectl version
+  ops kustomize version
+  ops spruce --version
+EOF
+  exit 1
+}
+
+if [[ $# -eq 0 ]]; then
+  usage
+fi
+
+if [[ "$(docker images -q ${IMAGE}:latest 2> /dev/null)" == "" ]]; then
+  docker build -t ${IMAGE} ${CI_OPS_PROJECT_PATH}
+fi
+
+# omit making docker command interactive if this appears in a pipeline
+test -t 1 && USE_TTY="-it" || USE_TTY=""
+
+docker run --network host --env-file <(unset SHELL HOME PATH && /usr/bin/env) -v ${HOME}:/root -v ${ROOT_PATH}:${ROOT_PATH} -w ${PWD} ${USE_TTY} --rm ${IMAGE} /bin/bash -c "PATH=${ROOT_PATH}/bin:\${PATH} && $*"

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# find shas in current branch that modified a list of provided file patterns.
+set -euo pipefail
+
+function usage {
+  cat <<EOF
+Usage: versions [file pattern...]
+
+Find ordered list of all commit hashes that modified any of a list of supplied
+file patterns.
+
+Note: this is limited to commits in the currently checked out branch.
+
+Example Usage:
+  versions projects/service-echo/src/*
+EOF
+}
+
+if [[ $# -eq "0" ]]; then
+  usage
+  exit 1
+fi
+
+# Get the absolute path to this script so we can be sure the git commands we
+# run are executed in the repo regardless of where the caller is.
+SCRIPT_PATH="$(cd "$(dirname "$BASH_SOURCE[0]")"; pwd -P)"
+
+# Determine the current branch no matter where this script is executed from.
+BRANCH_NAME=${BRANCH_NAME:-"$(cd "${SCRIPT_PATH}" && git branch | grep \* | cut -d' ' -f2)"}
+
+# Get all versions affected by the requsted file patterns.
+git rev-list ${BRANCH_NAME} --first-parent -- $@

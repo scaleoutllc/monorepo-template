@@ -1,0 +1,17 @@
+version: "3.5"
+services:
+  service-echo:
+    container_name: service-echo
+    environment:
+      APP_SERVER_PORT: 8080
+    ports:
+    - 8080:8080
+    networks:
+    - local
+    build: ${SERVICE_ECHO_ROOT:-./}
+    volumes:
+    - ${SERVICE_ECHO_ROOT:-.}/dist:/var/app
+
+networks:
+  local:
+    name: local

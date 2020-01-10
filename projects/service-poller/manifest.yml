@@ -1,0 +1,28 @@
+project:
+  wip: false
+  name: service-poller
+  repository:
+    host: 286694495060.dkr.ecr.us-east-1.amazonaws.com
+  groups:
+  - all
+  - services
+  - examples
+  commands:
+    build: make
+    test: make test
+    version: make version
+    manifest: make manifest
+    environments: make environments
+  triggers:
+    build:
+    - src/*
+    - Dockerfile
+    - Makefile
+    - ../shared/components/go/endpoints/*
+    - ../shared/components/go/version/*
+    deploy:
+    - ../../bin/versions
+    - ../../bin/render-manifest
+    - infrastructure/base/*
+    - infrastructure/${DEPLOYMENT_NAME}/*
+    - ../shared/kubernetes/*

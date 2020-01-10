@@ -1,0 +1,8 @@
+# See Makefile target `manifest` if testing config or deploying manually.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+nameSuffix: -echo
+commonLabels:
+  app: service-echo
+resources:
+- ../../../../shared/kubernetes/service

@@ -1,0 +1,33 @@
+# See Makefile target `manifest` if testing config or deploying manually.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+nameSuffix: -poller
+commonLabels:
+  app: org-service-poller
+patches:
+- target:
+    kind: Deployment
+    name: org-service # matches prior to nameSuffix being applied
+  patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/env/0
+      value:
+          name: APP_POLLER_TARGET
+          value: http://org-service-echo:8080/v1/echo
+    - op: add
+      path: /spec/template/spec/containers/0/env/0
+      value:
+          name: APP_POLLER_METHOD
+          value: GET
+    - op: add
+      path: /spec/template/spec/containers/0/env/0
+      value:
+          name: APP_POLLER_BODY
+          value: ""
+    - op: add
+      path: /spec/template/spec/containers/0/env/0
+      value:
+          name: APP_POLLER_QPS
+          value: "2"
+resources:
+- ../../../../../shared/kubernetes/service

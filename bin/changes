@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# generate changelog for a list of provided file patterns.
+set -euo pipefail
+
+function usage {
+  cat <<EOF
+Usage: changes <since-commit> [file pattern...]
+
+Assemble a changelog that contains all commits that altered a provided set of files since a defined commit.
+
+Example Usage:
+  changes \$(git rev-list --max-parents=0 HEAD) README.md
+EOF
+}
+
+if [[ $# -lt 2 ]]; then
+  usage
+  exit 1
+fi
+
+# Get all versions affected by the requsted file patterns.
+git --no-pager log --pretty=format:"%C(yellow)%h %C(red)%ad %C(cyan)%aN%C(reset) %s%C(blue)%d%C(reset)" --graph --date=short $1..HEAD -- ${*:2}

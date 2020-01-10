@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# add repository bin directory to current shell PATH.
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")"; pwd -P)"
+# ^
+# Ensure the path to this script can be found when run in the following forms:
+# bin/bash (from a zsh shell OR bash shell)
+# source bin/bash (from a zsh shell OR bash shell)
+# bash -c "bin/bash"
+# bash -c "source bin/bash"
+
+# given two arguments get the relative path between them.
+# this lovely nonsense is used to make help screens a bit less verbose.
+function relpath {
+  s=$(cd ${1%%/};pwd); d=$(cd $2;pwd); while [ "${d#$s/}" == "${d}" ]
+  do s=$(dirname $s);b="../${b:-}"; done; echo ${b:-}${d#$s/}
+}
+
+if [[ "$0" = "${BASH_SOURCE:-}" ]]; then
+  echo -e "$(cat <<EOF
+This file must be sourced to configure your shell.
+
+Run this instead:
+  \e[1;34msource $(relpath $PWD ${SCRIPT_PATH})/load\e[0m
+EOF
+)"
+  exit 1
+fi
+
+# add bin directory to path
+export PATH=${PATH}:${SCRIPT_PATH}
+echo "Shell configured. Type \e[1;34mlist-commands\e[0m for more information."

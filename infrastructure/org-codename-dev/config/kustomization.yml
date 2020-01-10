@@ -1,0 +1,8 @@
+configMapGenerator:
+- name: environment
+  files:
+  - hostname
+  - project-name
+  - rds-hostname
+generatorOptions:
+  disableNameSuffixHash: true

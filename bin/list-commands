@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# show details about what commands are available.
+set -euo pipefail
+SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+
+function entry {
+  local command=$(basename $1)
+  local description=$(sed -n '2p' $1)
+  printf "%-25s %s\n" $(echo -e "\e[1;34m$command\e[0m\n") "${description:2}"
+}
+
+find ${SCRIPT_PATH} -maxdepth 1 -type f | sort | while read file; do
+  entry $file
+done
