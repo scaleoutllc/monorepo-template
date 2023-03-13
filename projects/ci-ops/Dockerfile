@@ -8,7 +8,7 @@ RUN bash deps.sh
 
 FROM alpine
 
-RUN apk --no-cache add make ncurses bash coreutils curl git python py-pip gradle moreutils gettext ansible
+RUN apk --no-cache add make ncurses bash coreutils curl git python3 py3-pip gradle moreutils gettext
 RUN pip install awscli
 
 COPY --from=artifacts /bin/* /usr/local/bin/

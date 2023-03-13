@@ -7,11 +7,11 @@ ENV SPRUCE_VERSION=1.25.2
 RUN apk add curl && curl -sSLo /opt/spruce https://github.com/geofffranks/spruce/releases/download/v${SPRUCE_VERSION}/spruce-linux-amd64 \
   && chmod +x /opt/spruce
 
-FROM ubuntu:focal
+FROM ubuntu:kinetic
 
 COPY --from=artifacts /opt/* /usr/local/bin/
 
-ENV GOLANG_VERSION=1.14 \
+ENV GOLANG_VERSION=1.19 \
   DEBIAN_FRONTEND=noninteractive
   # ^ prevent apt from prompting for user input
 
@@ -27,12 +27,11 @@ COPY profile.sh /root/.profile
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         apt-utils git curl jq make software-properties-common \
-        golang-${GOLANG_VERSION} \
+        golang-${GOLANG_VERSION}-go \
         postgresql redis \
     && \
   rm -rf /var/lib/apt/lists/* && \
-# install golint
-  go get -u golang.org/x/lint/golint && \
+  go install honnef.co/go/tools/cmd/staticcheck@latest && \
 # smoke test the services
   bash /root/.profile && \
   redis-cli --scan && \
