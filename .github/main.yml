@@ -1,0 +1,8 @@
+on: push
+
+jobs:
+  main:
+    name: hello
+    steps:
+    - name: world
+      run: echo "hello world"
