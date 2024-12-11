@@ -1,18 +1,19 @@
 package main
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
 	ops = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "processed_ops_total",
-		Help: "The total number of processed events",
+		Help: " The total number of processed events",
 	})
 )
 

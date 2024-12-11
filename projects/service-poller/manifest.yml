@@ -24,5 +24,4 @@ project:
     - ../../bin/versions
     - ../../bin/render-manifest
     - infrastructure/base/*
-    - infrastructure/${DEPLOYMENT_NAME}/*
     - ../shared/kubernetes/*

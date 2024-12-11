@@ -1,0 +1,84 @@
+#!/bin/bash
+# detect which projects have changed to orchestrate a monorepo ci system
+set -euo pipefail
+SCRIPT_PATH="$(cd "$(dirname "$0")"; pwd -P)"
+
+cat <<EOF >&2
+
+██╗███╗░░██╗░█████╗░███████╗██████╗░████████╗██╗░█████╗░███╗░░██╗
+██║████╗░██║██╔══██╗██╔════╝██╔══██╗╚══██╔══╝██║██╔══██╗████╗░██║
+██║██╔██╗██║██║░░╚═╝█████╗░░██████╔╝░░░██║░░░██║██║░░██║██╔██╗██║
+██║██║╚████║██║░░██╗██╔══╝░░██╔═══╝░░░░██║░░░██║██║░░██║██║╚████║
+██║██║░╚███║╚█████╔╝███████╗██║░░░░░░░░██║░░░██║╚█████╔╝██║░╚███║
+╚═╝╚═╝░░╚══╝░╚════╝░╚══════╝╚═╝░░░░░░░░╚═╝░░░╚═╝░╚════╝░╚═╝░░╚══╝
+
+EOF
+
+debug() {
+  local BLUE="\033[34m"
+  local WHITE="\033[37m"
+  local RESET="\033[0m"
+  echo -e "${BLUE}[$1]:${RESET} ${WHITE}$2${RESET}" >&2
+}
+
+resolve() {
+  local BASE_DIR=$1
+  local RELATIVE_PATH=$2
+  if [[ "$RELATIVE_PATH" == /* ]]; then
+    echo "$RELATIVE_PATH"
+  else
+    echo "$(cd "$BASE_DIR" && cd "$RELATIVE_PATH" 2>/dev/null && pwd)"
+  fi
+}
+
+BASE_BRANCH=${BASE_BRANCH:-main}
+BEFORE_SHA=${BEFORE_SHA:-0000000000000000000000000000000000000000} 
+CURRENT_SHA=${CURRENT_SHA:-HEAD} 
+REPO_PATH=${REPO_PATH:-"$(resolve ${SCRIPT_PATH} ../)"}
+PROJECT_ROOT=${PROJECT_ROOT:-projects}
+(
+  cd "$REPO_PATH"
+  if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+    COMMIT_TYPE="new-branch"
+    BASE_COMMIT=$(git merge-base "$CURRENT_SHA" "origin/$BASE_BRANCH")
+  elif ! git merge-base --is-ancestor "$BEFORE_SHA" "$CURRENT_SHA" 2>/dev/null; then
+    COMMIT_TYPE="force-push"
+    BASE_COMMIT=$(git merge-base "$CURRENT_SHA" "origin/$BASE_BRANCH")
+  else
+    COMMIT_TYPE="standard-push"
+    BASE_COMMIT="$BEFORE_SHA"
+  fi
+  CHANGED_FILES=$(git diff --name-only "$BASE_COMMIT" "$CURRENT_SHA")
+  CHANGED_PROJECTS=()
+  for PROJECT in $(find ${PROJECT_ROOT} -type f -name "manifest.yml" -exec dirname {} \;); do
+    TRIGGER_KEYS=$(yq '.project.triggers | keys[]' "$PROJECT/manifest.yml")
+    WORKFLOWS=()
+    for KEY in $TRIGGER_KEYS; do
+      TRIGGERS=$(yq ".project.triggers.$KEY[]" "$PROJECT/manifest.yml")
+      for TRIGGER in $TRIGGERS; do
+        TRIGGER_PATH=$(resolve "$PROJECT" "$TRIGGER")
+        if echo "$CHANGED_FILES" | grep -qE "^$TRIGGER_PATH"; then
+          WORKFLOWS+=("${KEY}")
+          break
+        fi
+      done
+    done
+    if [[ ${#WORKFLOWS[@]} -ne 0 ]]; then
+      CHANGED_PROJECTS+=(
+        "{\"name\":\"${PROJECT#"$PROJECT_ROOT/"}\",\"workflows\":[$(printf '"%s",' "${WORKFLOWS[@]}" | sed 's/,$//')]}"
+      )
+    fi
+  done
+
+  for var in BASE_BRANCH BEFORE_SHA CURRENT_SHA REPO_PATH PROJECT_ROOT COMMIT_TYPE BASE_COMMIT; do
+    debug "$var" "${!var}"
+  done
+  debug "CHANGED_FILES" "$(printf "\n%s\n" "$CHANGED_FILES" | sed 's/^/  /')"
+
+  if [[ ${#CHANGED_PROJECTS[@]} -ne 0 ]]; then
+    debug "CHANGED_PROJECTS" "\n$(echo "${CHANGED_PROJECTS[@]}" | tr ' ' '\n' | jq -r '.name+" ("+(.workflows|join(","))+")"' | sed 's/^/  /')"
+    printf "[$(printf '%s,' "${CHANGED_PROJECTS[@]}" | sed 's/,$//')]"
+  else
+    printf "[]"
+  fi
+)

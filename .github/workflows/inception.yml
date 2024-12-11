@@ -3,64 +3,42 @@ name: inception
 on:
   push:
 
-jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      changed_projects: ${{ steps.detect.outputs.changed_projects }}
-    steps:
-      - name: checkout repository
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: get base commit
-        id: base-commit
-        run: |
-          git fetch origin main --depth=1
-          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
-            echo "New branch detected. Using main as base."
-            BASE_COMMIT=$(git merge-base HEAD origin/main)
-          elif ! git merge-base --is-ancestor ${{ github.event.before }} HEAD; then
-            echo "Force push detected. Using main as base."
-            BASE_COMMIT=$(git merge-base HEAD origin/main)
-          else
-            echo "Regular commit. Using the previous commit as base."
-            BASE_COMMIT=${{ github.event.before }}
-          fi
-          echo "Base commit: $BASE_COMMIT"
-          echo "::set-output name=base::$BASE_COMMIT"
-
-      - name: find affected projects
-        id: changed-projects
-        run: |
-          echo "Finding all project folders with manifest.yml..."
-          PROJECT_FOLDERS=$(find projects -type f -name "manifest.yml" -exec dirname {} \;)
-          echo "Fetching the list of changed files..."
-          CHANGED_FILES=$(git diff --name-only ${{ steps.base-commit.outputs.base }} HEAD)
-          echo "Identifying changed projects based on triggers in manifest.yml..."
-          CHANGED_PROJECTS=""
-          for PROJECT in $PROJECT_FOLDERS; do
-            BUILD_TRIGGERS=$(yq '.project.triggers.build[]' $PROJECT/manifest.yml)
-            DEPLOY_TRIGGERS=$(yq '.project.triggers.deploy[]' $PROJECT/manifest.yml)
-            MATCHED=false
-            for TRIGGER in $BUILD_TRIGGERS $DEPLOY_TRIGGERS; do
-              TRIGGER_PATH=$(echo "$PROJECT/$TRIGGER" | sed 's://*:/:g') # Normalize slashes
-              if echo "$CHANGED_FILES" | grep -qE "^$TRIGGER_PATH"; then
-                MATCHED=true
-                break
-              fi
-            done
-            if [ "$MATCHED" = true ]; then
-              CHANGED_PROJECTS="$CHANGED_PROJECTS $PROJECT"
-            fi
-          done
-          if [ -z "$CHANGED_PROJECTS" ]; then
-            echo "No project folders were changed."
-          else
-            echo "Changed projects:"
-            echo "$CHANGED_PROJECTS"
-          fi
-          CHANGED_PROJECTS=$(echo "$CHANGED_PROJECTS" | xargs)
-          echo "::set-output name=changed_projects::$CHANGED_PROJECTS"
+env:
+  PROJECT_ROOT: projects
+  BASE_BRANCH: main
+  BEFORE_SHA: ${{ github.event.before }}
   
+jobs:
+  inception:
+    runs-on: ubuntu-24.04
+    outputs:
+      projects: ${{ steps.detect.outputs.projects }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Inception
+      id: detect
+      run: |
+        results=$(bin/inception 2>/dev/stderr)
+        echo "projects=$(echo "$results" | jq -rc 'map(.name)')" >> $GITHUB_OUTPUT
+
+  run:
+    needs: inception
+    if: ${{ needs.inception.outputs.projects != '[]' }}
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        project: ${{ fromJson(needs.inception.outputs.projects) }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: ./.github/actions/build
+      with:
+        PROJECT: ${{ matrix.project }}
+        PROJECT_ROOT: ${{ env.PROJECT_ROOT }}/${{ matrix.project}}
+      
+
